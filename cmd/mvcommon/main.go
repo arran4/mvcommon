@@ -11,11 +11,7 @@ import (
 func main() {
 	// Define flags
 	flagSet := flag.NewFlagSet("mvcommon", flag.ExitOnError)
-	stopWords := []string{
-		" - ",
-		"] ",
-		"[",
-	}
+	stopWords := mvcommon.DefaultStopWords
 	defaultStopWords := true
 	flagSet.Func("stopword", "Stopword to stop common prefix detection, defaults:[`"+strings.Join(stopWords, "`,`")+"`]", func(s string) error {
 		if defaultStopWords {
@@ -27,28 +23,21 @@ func main() {
 		return nil
 	})
 	dryRunFlag := flagSet.Bool("dry-run", false, "Perform a dry run without moving files")
-	trimFlag := flagSet.String("trim", "-_ ", "Characters to trim")
-	minMatchFlag := flagSet.Int("minimumMatch", 3, "Minimum size of common segment")
+	trimFlag := flagSet.String("trim", mvcommon.DefaultTrim, "Characters to trim")
+	minMatchFlag := flagSet.Int("min", 3, "Minimum size of common segment")
 	flag.Parse()
 
 	// Remaining arguments are file names
 	files := flag.Args()
 	if len(files) < 2 {
-		fmt.Println("Usage: mvcommon [-stopword=<stopword: - >] [-trim=<trim:- _>] [-dry-run] <file1> <file2> ...")
+		fmt.Println("Usage: mvcommon [-stopword=<stopword:`" + strings.Join(stopWords, "`,`") + "`>] [-trim=<trim:" + *trimFlag + ">] [-min=3] [-dry-run] <file1> <file2> ...")
 		os.Exit(1)
 	}
 
 	// Find common prefix
-	commonPrefix := mvcommon.CommonPrefixSplit(files, stopWords, *trimFlag, *minMatchFlag)
-	if commonPrefix == "" {
-		fmt.Println("No common prefix found. Exiting.")
-		os.Exit(1)
-	}
-
-	// Clean the common prefix further for folder naming
-	folderName := strings.ReplaceAll(commonPrefix, " ", "")
+	folderName := mvcommon.CommonPrefixSplit(files, stopWords, *trimFlag, *minMatchFlag)
 	if folderName == "" {
-		fmt.Println("Invalid folder name after cleaning. Exiting.")
+		fmt.Println("No common prefix found. Exiting.")
 		os.Exit(1)
 	}
 
