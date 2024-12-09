@@ -43,15 +43,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Find common prefix
-	folderName := mvcommon.CommonPrefixSplit(files, stopWords, *trimFlag, *minMatchFlag)
-	if folderName == "" {
-		fmt.Println("No common prefix found. Exiting.")
-		os.Exit(1)
-	}
+	var folderName string
 
 	if *interactiveFlag {
-		files = interactiveFileSelection(files)
+		files, folderName = interactiveFileSelection(files, stopWords, *trimFlag, *minMatchFlag)
 	}
 
 	if len(files) == 0 {
@@ -74,47 +69,65 @@ func main() {
 	fmt.Println("Operation completed successfully.")
 }
 
-func interactiveFileSelection(files []string) []string {
+func interactiveFileSelection(files []string, stopWords []string, trim string, minMatch int) ([]string, string) {
 	reader := bufio.NewReader(os.Stdin)
-
-	// Print files with indices
-	fmt.Println("\nInteractive Mode Enabled:")
-	fmt.Println("The following files are detected:")
-	for i, file := range files {
-		fmt.Printf("%d. %s\n", i+1, file)
-	}
-
-	// Prompt user for confirmation or range input
-	fmt.Println("\nEnter file numbers to include (e.g., 1,2,3 or 1-3,5-6) or press 'a' to confirm all:")
+	selectedFiles := files
 	for {
-		fmt.Print("Your choice: ")
-		input, _ := reader.ReadString('\n')
-		input = strings.TrimSpace(input)
 
-		if input == "a" {
-			return files // Confirm all files
+		// Print files with indices
+		fmt.Println("\nInteractive Mode Enabled:")
+		// Find common prefix
+		folderName := mvcommon.CommonPrefixSplit(selectedFiles, stopWords, trim, minMatch)
+		if folderName == "" {
+			fmt.Println("Error: No common prefix found!\n")
+		} else {
+			fmt.Printf("Will move the files to %q\n\n", folderName)
 		}
 
-		selectedIndices, err := mvcommon.ParseNumberRanges(input, len(files))
-		if err != nil {
-			fmt.Println("Invalid input:", err)
-			continue
+		fmt.Println("For the following files:")
+		for i, file := range selectedFiles {
+			fmt.Printf("%d. %s\n", i+1, file)
 		}
 
-		var selectedFiles []string
-		for _, idx := range selectedIndices {
-			selectedFiles = append(selectedFiles, files[idx])
-		}
+		var nextSelectedFiles = make([]string, 0, len(selectedFiles))
 
-		if len(selectedFiles) > 0 {
-			fmt.Println("Selected files:")
-			for _, file := range selectedFiles {
-				fmt.Println(" -", file)
+		// Prompt user for confirmation or range input
+		fmt.Println("\nEnter file numbers to include (e.g., 1,2,3 or 1-3,5-6) or press 'a' to confirm all, 'r' to reset:")
+		for {
+			fmt.Print("Your choice: ")
+			input, err := reader.ReadString('\n')
+			if err != nil {
+				fmt.Printf("Error reading input: %v\n", err)
+				panic(err)
 			}
-			return selectedFiles
-		}
+			input = strings.TrimSpace(input)
 
-		fmt.Println("No valid files selected. Try again.")
+			if input == "a" {
+				return selectedFiles, folderName // Confirm all files
+			}
+
+			if input == "r" {
+				nextSelectedFiles = files
+				break
+			}
+
+			selectedIndices, err := mvcommon.ParseNumberRanges(input, len(selectedFiles))
+			if err != nil {
+				fmt.Println("Invalid input:", err)
+				continue
+			}
+
+			for _, idx := range selectedIndices {
+				nextSelectedFiles = append(nextSelectedFiles, selectedFiles[idx])
+			}
+
+			if len(nextSelectedFiles) > 0 {
+				break
+			}
+
+			fmt.Println("No valid files selected. Try again.")
+		}
+		selectedFiles = nextSelectedFiles
 	}
 }
 
