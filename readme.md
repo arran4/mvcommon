@@ -103,4 +103,13 @@ $ tree .
 
 # Download
 
-See Releases folder.
+See Github releases here: https://github.com/arran4/mvcommon/releases
+
+## Gentoo
+
+See: https://github.com/arran4/arrans_overlay
+
+```
+$ eselect repository enable arrans-overlay
+$ emerge -va app-misc/mvcommon-bin 
+```
