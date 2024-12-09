@@ -109,7 +109,7 @@ See Github releases here: https://github.com/arran4/mvcommon/releases
 
 See: https://github.com/arran4/arrans_overlay
 
-```
+```bash
 $ eselect repository enable arrans-overlay
 $ emerge -va app-misc/mvcommon-bin 
 ```
