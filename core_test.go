@@ -24,6 +24,14 @@ func TestCommonPrefixSplit(t *testing.T) {
 			expected:      "Report 234",
 		},
 		{
+			name:          "CommonPrefix_WithStopWord_AndTrimmedSpaces Stop Words!",
+			names:         []string{"Artist - Album I", "Artist - Album II"},
+			stopWords:     []string{" - ", "] ", "["},
+			trim:          "_- ",
+			minimumLength: 3,
+			expected:      "Artist",
+		},
+		{
 			name:          "CommonPrefix_WithStopWords_AndBracketsInNames",
 			names:         []string{"[Draft] Report 234.txt", "[For Review a] Report 234 - Version 2.txt", "[Final] Report 234.txt"},
 			stopWords:     []string{" - ", "] ", "["},

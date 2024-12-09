@@ -99,7 +99,7 @@ func CommonPrefixSplit(names []string, stopWords []string, trim string, minMatch
 					matchesForPrefix := nameMatchesForPrefix[i]
 					skip := 0
 					for _, stopWord := range stopWords {
-						if len(name) > matchesForPrefix.pos+matchesForPrefix.len+len(stopWord) && name[matchesForPrefix.pos+matchesForPrefix.len-1:matchesForPrefix.pos+matchesForPrefix.len+len(stopWord)] == stopWord {
+						if len(name) > matchesForPrefix.pos+matchesForPrefix.len-1+len(stopWord) && name[matchesForPrefix.pos+matchesForPrefix.len-1:matchesForPrefix.pos-1+matchesForPrefix.len+len(stopWord)] == stopWord {
 							skip = max(len(stopWord), skip)
 						}
 					}
