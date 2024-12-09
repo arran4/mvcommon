@@ -25,12 +25,23 @@ func main() {
 	dryRunFlag := flagSet.Bool("dry-run", false, "Perform a dry run without moving files")
 	trimFlag := flagSet.String("trim", mvcommon.DefaultTrim, "Characters to trim")
 	minMatchFlag := flagSet.Int("min", 3, "Minimum size of common segment")
-	flag.Parse()
+	flagSet.Usage = func() {
+		Usage(stopWords, *trimFlag)
+	}
+	err := flagSet.Parse(os.Args[1:])
+	if err != nil {
+		panic(err)
+		return
+	}
 
 	// Remaining arguments are file names
-	files := flag.Args()
+	files := flagSet.Args()
 	if len(files) < 2 {
-		fmt.Println("Usage: mvcommon [-stopword=<stopword:`" + strings.Join(stopWords, "`,`") + "`>] [-trim=<trim:" + *trimFlag + ">] [-min=3] [-dry-run] <file1> <file2> ...")
+		switch len(files) {
+		case 1:
+			fmt.Println("Error: At least two files required")
+		}
+		Usage(stopWords, *trimFlag)
 		os.Exit(1)
 	}
 
@@ -54,4 +65,8 @@ func main() {
 	}
 
 	fmt.Println("Operation completed successfully.")
+}
+
+func Usage(stopWords []string, trimFlag string) {
+	fmt.Println("Usage: mvcommon [-stopword=<stopword:`" + strings.Join(stopWords, "`,`") + "`>] [-trim=<trim:" + trimFlag + ">] [-min=3] [-dry-run] <file1> <file2> ...")
 }
