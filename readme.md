@@ -7,7 +7,7 @@ string in the filename, and create a folder and move the contents into that fold
 
 ```
 $ mvcommon              
-Usage: mvcommon [-stopword=<stopword:` - `,`] `,`[`>] [-trim=<trim:-_ >] [-min=3] [-dry-run] <file1> <file2> ...
+Usage: mvcommon [-stopword=<stopword:` - `,`] `,`[`>] [-trim=<trim:-_ .>] [-min=3] [-dry-run] [-interactive] <file1> <file2> ...
 ```
 
 # Examples
@@ -96,6 +96,38 @@ $ tree .
 │   ├── file_one.txt
 │   ├── file_three.txt
 │   └── file_two.txt
+└── mvcommon
+
+2 directories, 4 files
+```
+
+## Interactive mode
+
+```bash
+% touch "file_one.txt" "file_two.txt" "file_three.txt"
+% ./mvcommon -interactive *.txt
+
+Interactive Mode Enabled:
+The following files are detected:
+1. file_one.txt
+2. file_three.txt
+3. file_two.txt
+
+Enter file numbers to include (e.g., 1,2,3 or 1-3,5-6) or press 'a' to confirm all:
+Your choice: 1-2
+Selected files:
+ - file_one.txt
+ - file_three.txt
+Creating folder: file
+Moved file_one.txt -> file/file_one.txt
+Moved file_three.txt -> file/file_three.txt
+Operation completed successfully.
+% tree .
+.
+├── file
+│   ├── file_one.txt
+│   └── file_three.txt
+├── file_two.txt
 └── mvcommon
 
 2 directories, 4 files
