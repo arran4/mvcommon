@@ -1,4 +1,4 @@
-# mvcommmon
+# mvcommon
 
 This is a basic program where you specify a bunch of files or folders as arguments, then it will find the first common 
 string in the filename, and create a folder and move the contents into that folder.
