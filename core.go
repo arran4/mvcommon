@@ -51,7 +51,7 @@ func CommonPrefixSplit(names []string, stopWords []string, trim string, minMatch
 				}
 			}
 			if skip > 0 {
-				i += skip
+				i += skip - 1
 				continue
 			}
 			_, ok := matchLookup[substr]
