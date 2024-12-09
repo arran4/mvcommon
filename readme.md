@@ -101,28 +101,6 @@ $ tree .
 2 directories, 4 files
 ```
 
+# Download
 
-```bash
-
-```
-
-
-```bash
-
-```
-
-
-```bash
-
-```
-
-
-```bash
-
-```
-
-
-```bash
-
-```
-
+See Releases folder.
