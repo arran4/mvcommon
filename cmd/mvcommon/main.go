@@ -47,6 +47,12 @@ func main() {
 
 	if *interactiveFlag {
 		files, folderName = interactiveFileSelection(files, stopWords, *trimFlag, *minMatchFlag)
+	} else {
+		folderName = mvcommon.CommonPrefixSplit(files, stopWords, *trimFlag, *minMatchFlag)
+	}
+	if folderName == "" {
+		fmt.Println("Error: No common prefix found! Exiting")
+		os.Exit(1)
 	}
 
 	if len(files) == 0 {
