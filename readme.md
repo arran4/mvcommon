@@ -1,14 +1,30 @@
 # mvcommon
 
-This is a basic program where you specify a bunch of files or folders as arguments, then it will find the first common 
-string in the filename, and create a folder and move the contents into that folder.
+`mvcommon` tidies directories by detecting a shared prefix in file names and automatically moving those files into a folder named after that prefix. It exists so you don't need to keep writing throwaway scripts or manually sort files one by one.
 
-# Usage:
+## Usage
 
 ```
 $ mvcommon              
 Usage: mvcommon [-stopword=<stopword:` - `,`] `,`[`>] [-trim=<trim:-_ .>] [-min=3] [-dry-run] [-interactive] <file1> <file2> ...
 ```
+## Features
+
+- Automatically detects common filename prefixes
+- Optionally remove stop words and trimming characters
+- `-interactive` mode to confirm operations
+- `-dry-run` shows what would change without modifying files
+
+## Why use mvcommon?
+
+`mvcommon` shines when you regularly download or create files that share a common prefix. Instead of manually creating folders and dragging files around, a single command sorts everything for you. Typical scenarios include:
+
+- Grouping invoices or reports that start with the same project code
+- Collecting export files that all begin with a date or build number
+- Tidying up camera downloads so your holiday photos end up in their own directory
+
+By automating these chores, `mvcommon` keeps folders organised and saves you the tedious clicks of moving files individually.
+
 
 # Examples
 
@@ -133,7 +149,7 @@ Operation completed successfully.
 2 directories, 4 files
 ```
 
-# Download
+## Download
 
 See Github releases here: https://github.com/arran4/mvcommon/releases
 
@@ -145,3 +161,6 @@ See: https://github.com/arran4/arrans_overlay
 $ eselect repository enable arrans-overlay
 $ emerge -va app-misc/mvcommon-bin 
 ```
+
+---
+Licensed under the terms of the GPL-3.0.
