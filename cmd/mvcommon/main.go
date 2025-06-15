@@ -85,7 +85,7 @@ func interactiveFileSelection(files []string, stopWords []string, trim string, m
 		// Find common prefix
 		folderName := mvcommon.CommonPrefixSplit(selectedFiles, stopWords, trim, minMatch)
 		if folderName == "" {
-			fmt.Println("Error: No common prefix found!\n")
+			fmt.Println("Error: No common prefix found!")
 		} else {
 			fmt.Printf("Will move the files to %q\n\n", folderName)
 		}

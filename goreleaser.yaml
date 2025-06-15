@@ -1,14 +1,16 @@
+version: 2
 project_name: mvcommon
 builds:
-  -
-    id: "mvcommon"
-    binary: "mvcommon"
+  - id: mvcommon
+    binary: mvcommon
     dir: cmd/mvcommon
     env:
       - CGO_ENABLED=0
+    goos: [linux, windows, darwin]
+    goarch: [amd64, arm64]
+    flags: ["-trimpath"]
 archives:
-  -
-    format_overrides:
+  - format_overrides:
       - goos: windows
         format: zip
 checksum:
@@ -22,8 +24,7 @@ changelog:
       - '^docs:'
       - '^test:'
 nfpms:
-  -
-    vendor: Ubels Software Development
+  - vendor: Ubels Software Development
     homepage: https://github.com/arran4/
     maintainer: Arran Ubels <arran@ubels.com.au>
     description: NA
@@ -37,3 +38,24 @@ nfpms:
     release: 1
     section: default
     priority: extra
+
+# Build and publish multi-arch docker images
+# Requires permissions to push to ghcr.io
+
+dockers:
+  - image_templates:
+      - ghcr.io/arran4/mvcommon:{{ .Tag }}-{{ .Arch }}
+    dockerfile: Dockerfile
+    use: buildx
+    goos: linux
+    goarch: [amd64, arm64]
+
+docker_manifests:
+  - name_template: ghcr.io/arran4/mvcommon:{{ .Tag }}
+    image_templates:
+      - ghcr.io/arran4/mvcommon:{{ .Tag }}-amd64
+      - ghcr.io/arran4/mvcommon:{{ .Tag }}-arm64
+  - name_template: ghcr.io/arran4/mvcommon:latest
+    image_templates:
+      - ghcr.io/arran4/mvcommon:{{ .Tag }}-amd64
+      - ghcr.io/arran4/mvcommon:{{ .Tag }}-arm64
