@@ -81,7 +81,8 @@ func interactiveFileSelection(files []string, stopWords []string, trim string, m
 	for {
 
 		// Print files with indices
-		fmt.Println("\nInteractive Mode Enabled:")
+		fmt.Println()
+		fmt.Println("Interactive Mode Enabled:")
 		// Find common prefix
 		folderName := mvcommon.CommonPrefixSplit(selectedFiles, stopWords, trim, minMatch)
 		if folderName == "" {
@@ -99,7 +100,8 @@ func interactiveFileSelection(files []string, stopWords []string, trim string, m
 		var nextSelectedFiles = make([]string, 0, len(selectedFiles))
 
 		// Prompt user for confirmation or range input
-		fmt.Println("\nEnter file numbers to include (e.g., 1,2,3 or 1-3,5-6) or press 'a' to confirm all, 'r' to reset:")
+		fmt.Println()
+		fmt.Println("Enter file numbers to include (e.g., 1,2,3 or 1-3,5-6) or press 'a' to confirm all, 'r' to reset:")
 		for {
 			fmt.Print("Your choice: ")
 			input, err := reader.ReadString('\n')
