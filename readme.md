@@ -2,12 +2,38 @@
 
 `mvcommon` tidies directories by detecting a shared prefix in file names and automatically moving those files into a folder named after that prefix. It exists so you don't need to keep writing throwaway scripts or manually sort files one by one.
 
+## Installation
+
+### Go Install
+
+If you have Go installed, you can install `mvcommon` directly:
+
+```bash
+go install github.com/arran4/mvcommon/cmd/mvcommon@latest
+```
+
+### Build from Source
+
+```bash
+git clone https://github.com/arran4/mvcommon.git
+cd mvcommon
+go build ./cmd/mvcommon
+```
+
 ## Usage
 
+```bash
+mvcommon [flags] <file1> <file2> ...
 ```
-$ mvcommon              
-Usage: mvcommon [-stopword=<stopword:` - `,`] `,`[`>] [-trim=<trim:-_ .>] [-min=3] [-dry-run] [-interactive] <file1> <file2> ...
-```
+
+### Flags
+
+- `-stopword`: Stop word to stop common prefix detection. Can be specified multiple times. Defaults: ` - `, `] `, `[`.
+- `-trim`: Characters to trim from the start/end of the prefix. Default: `-_ .`.
+- `-min`: Minimum size of common segment. Default: `3`.
+- `-dry-run`: Show what would change without modifying files.
+- `-interactive`: Enable interactive mode for file selection.
+
 ## Features
 
 - Automatically detects common filename prefixes
