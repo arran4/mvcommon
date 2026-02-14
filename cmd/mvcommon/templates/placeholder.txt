@@ -1,0 +1,3 @@
+# Placeholder file to satisfy //go:embed *.txt in templates.go
+# This is required because go-subcommand v0.0.17 generates the templates package
+# but fails to generate usage templates for a root-only command.
