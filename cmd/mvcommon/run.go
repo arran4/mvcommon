@@ -1,22 +1,12 @@
-package mvcommon
+package main
 
 import (
 	"bufio"
 	"fmt"
+	"github.com/arran4/mvcommon"
 	"os"
 	"strings"
 )
-
-type StopWords []string
-
-func (s *StopWords) String() string {
-	return strings.Join(*s, ",")
-}
-
-func (s *StopWords) Set(value string) error {
-	*s = append(*s, value)
-	return nil
-}
 
 // Run is a subcommand `mvcommon`
 //
@@ -28,19 +18,26 @@ func (s *StopWords) Set(value string) error {
 //	dryRun:		--dry-run		Perform a dry run without moving files
 //	interactive:	--interactive	Enable interactive mode for file selection
 //	files:		...				Files to move
-func Run(stopWords StopWords, trim string, minMatch int, dryRun bool, interactive bool, files ...string) {
+func Run(stopWords string, trim string, minMatch int, dryRun bool, interactive bool, files ...string) {
 	if len(files) < 2 {
 		fmt.Println("Error: At least two files required")
 		Usage()
 		os.Exit(1)
 	}
 
+	var stopWordsSlice []string
+	if stopWords != "" {
+		stopWordsSlice = strings.Split(stopWords, ",")
+	} else {
+		stopWordsSlice = mvcommon.DefaultStopWords
+	}
+
 	var folderName string
 
 	if interactive {
-		files, folderName = interactiveFileSelection(files, stopWords, trim, minMatch)
+		files, folderName = interactiveFileSelection(files, stopWordsSlice, trim, minMatch)
 	} else {
-		folderName = CommonPrefixSplit(files, stopWords, trim, minMatch)
+		folderName = mvcommon.CommonPrefixSplit(files, stopWordsSlice, trim, minMatch)
 	}
 	if folderName == "" {
 		fmt.Println("Error: No common prefix found! Exiting")
@@ -59,7 +56,7 @@ func Run(stopWords StopWords, trim string, minMatch int, dryRun bool, interactiv
 	}
 
 	// Move files into the folder
-	if err := MoveFilesToFolder(folderName, files, dryRun); err != nil {
+	if err := mvcommon.MoveFilesToFolder(folderName, files, dryRun); err != nil {
 		fmt.Printf("Error: %v\n", err)
 		os.Exit(1)
 	}
@@ -76,7 +73,7 @@ func interactiveFileSelection(files []string, stopWords []string, trim string, m
 		fmt.Println()
 		fmt.Println("Interactive Mode Enabled:")
 		// Find common prefix
-		folderName := CommonPrefixSplit(selectedFiles, stopWords, trim, minMatch)
+		folderName := mvcommon.CommonPrefixSplit(selectedFiles, stopWords, trim, minMatch)
 		if folderName == "" {
 			fmt.Fprintln(os.Stderr, "Error: No common prefix found!")
 		} else {
@@ -112,7 +109,7 @@ func interactiveFileSelection(files []string, stopWords []string, trim string, m
 				break
 			}
 
-			selectedIndices, err := ParseNumberRanges(input, len(selectedFiles))
+			selectedIndices, err := mvcommon.ParseNumberRanges(input, len(selectedFiles))
 			if err != nil {
 				fmt.Println("Invalid input:", err)
 				continue
@@ -133,7 +130,7 @@ func interactiveFileSelection(files []string, stopWords []string, trim string, m
 }
 
 func Usage() {
-	stopWords := DefaultStopWords
-	trimFlag := DefaultTrim
+	stopWords := mvcommon.DefaultStopWords
+	trimFlag := mvcommon.DefaultTrim
 	fmt.Println("Usage: mvcommon [-stopword=<stopword:`" + strings.Join(stopWords, "`,`") + "`>] [-trim=<trim:" + trimFlag + ">] [-min=3] [-dry-run] [-interactive] <file1> <file2> ...")
 }

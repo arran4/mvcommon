@@ -1,0 +1,14 @@
+{{ .Description }}
+
+Usage: {{ .Name }} [flags] <args>
+
+{{ if .Flags -}}
+Flags:
+{{ .Flags }}
+{{ end -}}
+
+{{ if .SubCommands -}}
+Subcommands:
+{{ range .SubCommands }}    {{ .Name | printf "%-12s" }} {{ .Description }}
+{{ end }}
+{{ end -}}
