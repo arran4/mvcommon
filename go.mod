@@ -1,3 +1,3 @@
 module github.com/arran4/mvcommon
 
-go 1.25
+go 1.25.3
