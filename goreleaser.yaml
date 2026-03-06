@@ -12,26 +12,29 @@ builds:
 archives:
   - format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
 checksum:
   name_template: 'checksums.txt'
 snapshot:
-  name_template: "{{ .Tag }}-next"
+  version_template: "{{ .Tag }}-next"
 changelog:
   sort: asc
   filters:
     exclude:
       - '^docs:'
       - '^test:'
-brews:
+homebrew_casks:
   - repository:
       owner: arran4
       name: homebrew-tap
+      branch: "{{.ProjectName}}-{{.Version}}"
       token: "{{ .Env.TAP_GITHUB_TOKEN }}" # From Secrets.TAP_GITHUB_TOKEN update ci.yaml too to match
-      token_type: "github"
       pull_request:
         enabled: true
         draft: false
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
 
 nfpms:
   - vendor: Ubels Software Development
@@ -58,7 +61,13 @@ dockers:
     dockerfile: Dockerfile
     use: buildx
     goos: linux
-    goarch: [amd64, arm64]
+    goarch: amd64
+  - image_templates:
+      - ghcr.io/arran4/mvcommon:{{ .Tag }}-{{ .Arch }}
+    dockerfile: Dockerfile
+    use: buildx
+    goos: linux
+    goarch: arm64
 
 docker_manifests:
   - name_template: ghcr.io/arran4/mvcommon:{{ .Tag }}
