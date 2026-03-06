@@ -55,26 +55,12 @@ nfpms:
 # Build and publish multi-arch docker images
 # Requires permissions to push to ghcr.io
 
-dockers:
-  - image_templates:
-      - ghcr.io/arran4/mvcommon:{{ .Tag }}-{{ .Arch }}
-    dockerfile: Dockerfile
-    use: buildx
-    goos: linux
-    goarch: amd64
-  - image_templates:
-      - ghcr.io/arran4/mvcommon:{{ .Tag }}-{{ .Arch }}
-    dockerfile: Dockerfile
-    use: buildx
-    goos: linux
-    goarch: arm64
-
-docker_manifests:
-  - name_template: ghcr.io/arran4/mvcommon:{{ .Tag }}
-    image_templates:
-      - ghcr.io/arran4/mvcommon:{{ .Tag }}-amd64
-      - ghcr.io/arran4/mvcommon:{{ .Tag }}-arm64
-  - name_template: ghcr.io/arran4/mvcommon:latest
-    image_templates:
-      - ghcr.io/arran4/mvcommon:{{ .Tag }}-amd64
-      - ghcr.io/arran4/mvcommon:{{ .Tag }}-arm64
+dockers_v2:
+  - images:
+      - ghcr.io/arran4/mvcommon
+    tags:
+      - "{{ .Tag }}"
+      - latest
+    platforms:
+      - linux/amd64
+      - linux/arm64

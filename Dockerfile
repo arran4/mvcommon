@@ -1,3 +1,4 @@
 FROM scratch
-COPY mvcommon /mvcommon
+ARG TARGETPLATFORM
+COPY $TARGETPLATFORM/mvcommon /mvcommon
 ENTRYPOINT ["/mvcommon"]
