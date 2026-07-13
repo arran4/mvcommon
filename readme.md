@@ -190,3 +190,41 @@ $ emerge -va app-misc/mvcommon-bin
 
 ---
 Licensed under the terms of the GPL-3.0.
+
+## Agent Skills
+
+`mvcommon` supports agent skills, which teach AI coding agents how to use this CLI correctly.
+Skills can be installed from remote repositories or local directories.
+
+```bash
+# Manage agent skills
+mvcommon skill
+
+# Install a skill (defaults to user scope)
+mvcommon skill install <source> [name] --scope user
+
+# Example: Install the official mvcommon skill (local dir example)
+mvcommon skill install ./skills/mvcommon mvcommon --scope project
+
+# List installed skills
+mvcommon skill list
+
+# Inspect an installed skill
+mvcommon skill inspect <name>
+
+# Update an installed skill
+mvcommon skill update <name>
+
+# Remove an installed skill
+mvcommon skill remove <name>
+```
+
+### Installation Scope
+
+- **`user`** (default): Installs the skill into the user's home directory (e.g. `~/.agents/skills/`). Useful for teaching agents how to use the CLI globally.
+- **`project`**: Installs the skill into the current directory's `.agents/skills/` folder. Useful for teaching agents how to use the CLI in a specific repository.
+- **`--agent` flag**: Overrides the agent directory (e.g. `--agent copilot` will install to `.copilot/skills/`).
+
+### Updating Skills
+
+Updating a skill compares the local revision hash with the upstream hash to see if an update is required. Locally modified skills will not be overwritten unless `--force` is used.
