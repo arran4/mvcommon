@@ -13,24 +13,26 @@ func HandleList() error {
 	var allSkills []InstalledSkill
 
 	for _, scope := range scopes {
-		baseDest, err := ResolvePath(scope, "")
-		if err != nil {
-			continue
-		}
+		for _, agent := range []string{"", "copilot", "cursor"} {
+			baseDest, err := ResolvePath(scope, agent)
+			if err != nil {
+				continue
+			}
 
-		entries, err := os.ReadDir(baseDest)
-		if err != nil {
-			continue
-		}
+			entries, err := os.ReadDir(baseDest)
+			if err != nil {
+				continue
+			}
 
-		for _, entry := range entries {
-			if entry.IsDir() {
-				metaPath := filepath.Join(baseDest, entry.Name(), "metadata.json")
-				metaBytes, err := os.ReadFile(metaPath)
-				if err == nil {
-					var meta InstalledSkill
-					if err := json.Unmarshal(metaBytes, &meta); err == nil {
-						allSkills = append(allSkills, meta)
+			for _, entry := range entries {
+				if entry.IsDir() {
+					metaPath := filepath.Join(baseDest, entry.Name(), "metadata.json")
+					metaBytes, err := os.ReadFile(metaPath)
+					if err == nil {
+						var meta InstalledSkill
+						if err := json.Unmarshal(metaBytes, &meta); err == nil {
+							allSkills = append(allSkills, meta)
+						}
 					}
 				}
 			}

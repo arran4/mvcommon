@@ -17,22 +17,27 @@ func HandleInspect(name string) error {
 	var foundPath string
 
 	for _, scope := range scopes {
-		baseDest, err := ResolvePath(scope, "")
-		if err != nil {
-			continue
-		}
-
-		destPath := filepath.Join(baseDest, name)
-		metaPath := filepath.Join(destPath, "metadata.json")
-
-		metaBytes, err := os.ReadFile(metaPath)
-		if err == nil {
-			var meta InstalledSkill
-			if err := json.Unmarshal(metaBytes, &meta); err == nil {
-				foundMeta = &meta
-				foundPath = destPath
-				break
+		for _, agent := range []string{"", "copilot", "cursor"} {
+			baseDest, err := ResolvePath(scope, agent)
+			if err != nil {
+				continue
 			}
+
+			destPath := filepath.Join(baseDest, name)
+			metaPath := filepath.Join(destPath, "metadata.json")
+
+			metaBytes, err := os.ReadFile(metaPath)
+			if err == nil {
+				var meta InstalledSkill
+				if err := json.Unmarshal(metaBytes, &meta); err == nil {
+					foundMeta = &meta
+					foundPath = destPath
+					break
+				}
+			}
+		}
+		if foundMeta != nil {
+			break
 		}
 	}
 

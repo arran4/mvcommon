@@ -6,6 +6,7 @@ package main
 
 import (
 	"fmt"
+	"errors"
 	"os"
 
 	"github.com/arran4/mvcommon/cmd"
@@ -25,11 +26,12 @@ func main() {
 	}
 
 	if err := root.Execute(os.Args[1:]); err != nil {
-		if e, ok := err.(*cmd.ErrExitCode); ok {
-			if e.Err != nil {
-				fmt.Fprintf(os.Stderr, "Error: %v\n", e.Err)
+		var exitErr *cmd.ErrExitCode
+		if errors.As(err, &exitErr) {
+			if exitErr.Err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", exitErr.Err)
 			}
-			os.Exit(e.Code)
+			os.Exit(exitErr.Code)
 		}
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)

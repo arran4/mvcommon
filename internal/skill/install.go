@@ -16,8 +16,11 @@ func HandleInstall(source, name, scope, agent string, force bool) error {
 
 	skillName := name
 	if skillName == "" {
-		// Use base of source
-		skillName = filepath.Base(source)
+		if source == "official" || source == "embedded" {
+			skillName = "mvcommon"
+		} else {
+			skillName = filepath.Base(source)
+		}
 	}
 
 	destPath := filepath.Join(baseDest, skillName)
@@ -42,16 +45,6 @@ func HandleInstall(source, name, scope, agent string, force bool) error {
 			return err
 		}
 		revision = "embedded"
-		// If skill name was not explicitly provided, use mvcommon
-		if name == "" {
-			skillName = "mvcommon"
-			// Adjust destination path for the updated name
-			oldDestPath := destPath
-			destPath = filepath.Join(baseDest, skillName)
-			if oldDestPath != destPath {
-				os.Rename(oldDestPath, destPath)
-			}
-		}
 	} else if IsLocalPath(source) {
 		sourceType = "local"
 		if err := FetchLocal(source, destPath); err != nil {

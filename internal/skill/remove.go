@@ -16,24 +16,29 @@ func HandleRemove(name string, force bool) error {
 	var foundPath string
 
 	for _, scope := range scopes {
-		baseDest, err := ResolvePath(scope, "")
-		if err != nil {
-			continue
-		}
-
-		destPath := filepath.Join(baseDest, name)
-		if _, err := os.Stat(destPath); err == nil {
-			foundPath = destPath
-
-			// Optional: load metadata to report what was removed
-			metaPath := filepath.Join(destPath, "metadata.json")
-			metaBytes, err := os.ReadFile(metaPath)
-			if err == nil {
-				var meta InstalledSkill
-				if err := json.Unmarshal(metaBytes, &meta); err == nil {
-					fmt.Printf("Found skill '%s' (scope: %s, agent: %s)\n", meta.Name, meta.Scope, meta.Agent)
-				}
+		for _, agent := range []string{"", "copilot", "cursor"} {
+			baseDest, err := ResolvePath(scope, agent)
+			if err != nil {
+				continue
 			}
+
+			destPath := filepath.Join(baseDest, name)
+			if _, err := os.Stat(destPath); err == nil {
+				foundPath = destPath
+
+				// Optional: load metadata to report what was removed
+				metaPath := filepath.Join(destPath, "metadata.json")
+				metaBytes, err := os.ReadFile(metaPath)
+				if err == nil {
+					var meta InstalledSkill
+					if err := json.Unmarshal(metaBytes, &meta); err == nil {
+						fmt.Printf("Found skill '%s' (scope: %s, agent: %s)\n", meta.Name, meta.Scope, meta.Agent)
+					}
+				}
+				break
+			}
+		}
+		if foundPath != "" {
 			break
 		}
 	}
