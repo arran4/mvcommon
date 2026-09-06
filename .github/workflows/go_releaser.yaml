@@ -4,15 +4,177 @@ on:
   push:
     tags:
       - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Pipeline mode"
+        required: true
+        default: "release-minor"
+        type: choice
+        options:
+          - publish-tag
+          - release-major
+          - release-minor
+          - release-patch
+          - release-rc
+          - release-test
+      release_version_override:
+        description: "Optional explicit release version (e.g. 1.2.3 or v1.2.3)"
+        required: false
+        default: ""
+        type: string
 
 permissions:
-  contents: write
-  packages: write
+  contents: read
 
 jobs:
-  goreleaser:
+  prepare-release:
+    name: Prepare release tag
+    if: github.event_name == 'workflow_dispatch' && inputs.mode != 'publish-tag'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Run tests
+        run: go test ./...
+      - name: GoReleaser check
+        run: curl -sfL https://goreleaser.com/static/run | bash -s -- check
+      - name: GoReleaser snapshot build
+        run: curl -sfL https://goreleaser.com/static/run | bash -s -- release --snapshot --skip=publish --skip=sign --clean
+      - name: Tag and Dispatch
+        id: tag
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          MODE="${{ inputs.mode }}"
+          OVERRIDE="${{ inputs.release_version_override }}"
+
+          git fetch --tags --force
+
+          if [[ -n "$OVERRIDE" ]]; then
+            OVERRIDE="${OVERRIDE#v}"
+            next_tag="v$OVERRIDE"
+          else
+            latest_tag=$(git tag -l "v*" | sort -V | tail -n 1)
+            if [[ -z "$latest_tag" ]]; then
+              latest_tag="v0.0.0"
+            fi
+
+            # Remove 'v' prefix and prerelease tags for calculation
+            clean_tag="${latest_tag#v}"
+            clean_tag="${clean_tag%%-*}"
+            IFS='.' read -r major minor patch <<< "$clean_tag"
+
+            # Default missing components to 0
+            major=${major:-0}
+            minor=${minor:-0}
+            patch=${patch:-0}
+
+            case "$MODE" in
+              release-major)
+                major=$((major + 1))
+                minor=0
+                patch=0
+                suffix=""
+                ;;
+              release-minor)
+                minor=$((minor + 1))
+                patch=0
+                suffix=""
+                ;;
+              release-patch)
+                patch=$((patch + 1))
+                suffix=""
+                ;;
+              release-rc)
+                patch=$((patch + 1))
+                suffix="-rc1"
+                ;;
+              release-test)
+                patch=$((patch + 1))
+                suffix="-test1"
+                ;;
+              *) echo "Unsupported release mode: $MODE" >&2; exit 1 ;;
+            esac
+
+            # Basic incrementing logic for rc/test tags. If the latest tag is already a prerelease, we increment the suffix number.
+            if [[ "$MODE" == "release-rc" || "$MODE" == "release-test" ]]; then
+                if [[ "$latest_tag" == *"rc"* ]] && [[ "$MODE" == "release-rc" ]]; then
+                    # Extract rc number, increment it
+                    rc_num=$(echo "$latest_tag" | awk -F'-rc' '{print $2}')
+                    rc_num=$((rc_num + 1))
+                    suffix="-rc$rc_num"
+                    # Reset patch logic since we are incrementing the existing rc
+                    IFS='.' read -r major minor patch <<< "${latest_tag#v}"
+                    patch="${patch%%-*}"
+                elif [[ "$latest_tag" == *"test"* ]] && [[ "$MODE" == "release-test" ]]; then
+                    # Extract test number, increment it
+                    test_num=$(echo "$latest_tag" | awk -F'-test' '{print $2}')
+                    test_num=$((test_num + 1))
+                    suffix="-test$test_num"
+                     # Reset patch logic since we are incrementing the existing test
+                    IFS='.' read -r major minor patch <<< "${latest_tag#v}"
+                    patch="${patch%%-*}"
+                fi
+            fi
+
+            next_tag="v${major}.${minor}.${patch}${suffix}"
+          fi
+
+          [[ "$next_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$ ]] || {
+            echo "Invalid tag: $next_tag" >&2
+            exit 1
+          }
+
+          if git rev-parse "$next_tag" >/dev/null 2>&1; then
+            REMOTE_TAG_SHA=$(git ls-remote --tags origin "refs/tags/$next_tag" | awk '{print $1}')
+            if [[ "$REMOTE_TAG_SHA" == "${GITHUB_SHA}" ]]; then
+              echo "Tag $next_tag exists and points to GITHUB_SHA. Safe to retry."
+            else
+              echo "Tag already exists and points to $REMOTE_TAG_SHA (expected ${GITHUB_SHA}): $next_tag" >&2
+              echo "To retry a failed publication for this exact version, ensure release_version_override is used and GITHUB_SHA matches." >&2
+              exit 1
+            fi
+          else
+            git tag "$next_tag" "${GITHUB_SHA}"
+            git push origin "$next_tag" || (
+              VERIFY_SHA=$(git ls-remote --tags origin "refs/tags/$next_tag" | awk '{print $1}')
+              if [[ "$VERIFY_SHA" == "${GITHUB_SHA}" ]]; then
+                echo "Tag successfully verified on remote after push error."
+              else
+                echo "Tag push failed and remote verification failed." >&2
+                exit 1
+              fi
+            )
+          fi
+
+          gh workflow run go_releaser.yaml --ref "$next_tag" -f mode="publish-tag"
+
+  goreleaser:
+    name: Run GoReleaser
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'publish-tag')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Enforce Tag Context
+        run: |
+          if [[ "${{ github.ref_type }}" != "tag" || ! "${{ github.ref }}" =~ ^refs/tags/v.* ]]; then
+            echo "publish-tag mode requires an eligible tag context (e.g. refs/tags/v*)" >&2
+            exit 1
+          fi
       -
         name: Checkout
         uses: actions/checkout@v4
