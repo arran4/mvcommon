@@ -1,0 +1,11 @@
+--- goreleaser.yaml
++++ goreleaser.yaml
+@@ -47,7 +47,7 @@
+ dockers_v2:
+   - images:
+       - ghcr.io/arran4/mvcommon
+     tags:
+       - "{{ .Tag }}"
+-      - latest
++      - '{{ if eq .Prerelease "" }}latest{{ end }}'
+     platforms:

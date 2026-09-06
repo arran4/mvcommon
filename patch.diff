@@ -1,0 +1,22 @@
+--- goreleaser.yaml
++++ goreleaser.yaml
+@@ -47,7 +47,7 @@
+ dockers_v2:
+   - images:
+       - ghcr.io/arran4/mvcommon
+     tags:
+       - "{{ .Tag }}"
+-      - latest
++      - '{{ if eq .Prerelease "" }}latest{{ end }}'
+     platforms:
+       - linux/amd64
+       - linux/arm64
+@@ -23,6 +23,7 @@
+ homebrew_casks:
+   - repository:
+       owner: arran4
+       name: homebrew-tap
++      skip_upload: auto
+       branch: "{{.ProjectName}}-{{.Version}}"
+       token: "{{ .Env.TAP_GITHUB_TOKEN }}" # From Secrets.TAP_GITHUB_TOKEN update ci.yaml too to match
+       pull_request:
