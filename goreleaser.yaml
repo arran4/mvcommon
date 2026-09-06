@@ -35,6 +35,7 @@ homebrew_casks:
     commit_author:
       name: goreleaserbot
       email: bot@goreleaser.com
+    skip_upload: auto
 
 nfpms:
   - vendor: Ubels Software Development
@@ -60,7 +61,10 @@ dockers_v2:
       - ghcr.io/arran4/mvcommon
     tags:
       - "{{ .Tag }}"
-      - latest
+      - '{{ if eq .Prerelease "" }}latest{{ end }}'
     platforms:
       - linux/amd64
       - linux/arm64
+
+release:
+  prerelease: auto
