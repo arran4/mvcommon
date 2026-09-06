@@ -64,3 +64,6 @@ dockers_v2:
     platforms:
       - linux/amd64
       - linux/arm64
+
+release:
+  prerelease: auto
