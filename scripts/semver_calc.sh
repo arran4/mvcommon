@@ -103,17 +103,21 @@ else
       exit 1
     fi
   else
-    # Automatically apply the calculated tag
-    git tag "$next_tag" "${GH_SHA}"
-    git push origin "$next_tag" >/dev/null 2>&1 || (
-      VERIFY_SHA=$(git ls-remote --tags origin "refs/tags/$next_tag" | awk '{print $1}')
-      if [[ "$VERIFY_SHA" == "${GH_SHA}" ]]; then
-        echo "Tag successfully verified on remote after push error." >&2
-      else
-        echo "Tag push failed and remote verification failed." >&2
-        exit 1
-      fi
-    )
+    # Automatically apply the calculated tag if not a dry run
+    if [[ -z "${DRY_RUN:-}" ]]; then
+      git tag "$next_tag" "${GH_SHA}"
+      git push origin "$next_tag" >/dev/null 2>&1 || (
+        VERIFY_SHA=$(git ls-remote --tags origin "refs/tags/$next_tag" | awk '{print $1}')
+        if [[ "$VERIFY_SHA" == "${GH_SHA}" ]]; then
+          echo "Tag successfully verified on remote after push error." >&2
+        else
+          echo "Tag push failed and remote verification failed." >&2
+          exit 1
+        fi
+      )
+    else
+      echo "Dry-run mode: Skipping tag push for $next_tag." >&2
+    fi
   fi
 fi
 
