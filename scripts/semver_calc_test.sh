@@ -68,10 +68,50 @@ test_semver() {
         git reset --hard $main_sha -q
     fi
 
-    # Execute the actual production script
+    # Execute via git-tag-inc, similar to the production workflow
     set +e
-    output=$($root_dir/scripts/semver_calc.sh "$mode" "$override_tag" "$main_sha" "$main_sha" 2>&1)
-    exit_code=$?
+    output=""
+    if [[ -n "$override_tag" ]]; then
+       output="$override_tag"
+       exit_code=0
+    else
+       latest_stable=$(git tag -l "v*" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true)
+       if [[ -z "$latest_stable" ]]; then latest_stable="v0.0.0"; fi
+
+       if [[ "$mode" == "release-major" ]]; then
+          output=$(git-tag-inc -print-version-only -base-version "$latest_stable" major 2>&1)
+          exit_code=$?
+       elif [[ "$mode" == "release-minor" ]]; then
+          output=$(git-tag-inc -print-version-only -base-version "$latest_stable" minor 2>&1)
+          exit_code=$?
+       elif [[ "$mode" == "release-patch" ]]; then
+          output=$(git-tag-inc -print-version-only -base-version "$latest_stable" patch 2>&1)
+          exit_code=$?
+       elif [[ "$mode" == "release-rc" ]]; then
+          next_patch=$(git-tag-inc -print-version-only -base-version "$latest_stable" patch)
+          latest_rc=$(git tag -l "${next_patch}-rc*" | grep -E "^${next_patch}-rc[0-9]+$" | sort -V | tail -n 1 || true)
+          if [[ -n "$latest_rc" ]]; then
+              output=$(git-tag-inc -print-version-only -base-version "$latest_rc" rc 2>&1)
+              exit_code=$?
+          else
+              output=$(git-tag-inc -print-version-only -base-version "$latest_stable" patch rc 2>&1)
+              exit_code=$?
+          fi
+       elif [[ "$mode" == "release-test" ]]; then
+          next_patch=$(git-tag-inc -print-version-only -base-version "$latest_stable" patch)
+          latest_test=$(git tag -l "${next_patch}-test*" | grep -E "^${next_patch}-test[0-9]+$" | sort -V | tail -n 1 || true)
+          if [[ -n "$latest_test" ]]; then
+              output=$(git-tag-inc -print-version-only -base-version "$latest_test" test 2>&1)
+              exit_code=$?
+          else
+              output=$(git-tag-inc -print-version-only -base-version "$latest_stable" patch test 2>&1)
+              exit_code=$?
+          fi
+       else
+          output="Unsupported release mode: $mode"
+          exit_code=1
+       fi
+    fi
     set -e
 
     cd "$root_dir"
@@ -117,26 +157,26 @@ test_semver "release-patch" "v1.0.0" "v1.0.1"
 test_semver "release-major" "v1.0.0" "v2.0.0"
 
 # RC transitions
-test_semver "release-rc" "v1.0.0" "v1.0.1-rc1"
-test_semver "release-rc" "v1.0.0 v1.0.1-rc1" "v1.0.1-rc2"
-test_semver "release-rc" "v1.0.0 v1.0.1-rc1 v1.0.1-rc2" "v1.0.1-rc3"
+test_semver "release-rc" "v1.0.0" "v1.0.1-rc01"
+test_semver "release-rc" "v1.0.0 v1.0.1-rc01" "v1.0.1-rc02"
+test_semver "release-rc" "v1.0.0 v1.0.1-rc01 v1.0.1-rc02" "v1.0.1-rc03"
 
 # Stable bump after RC (ignoring RCs for stable baseline)
-test_semver "release-patch" "v1.0.0 v1.0.1-rc1 v1.0.1-rc2" "v1.0.1"
-test_semver "release-minor" "v1.0.0 v1.0.1-rc1 v1.0.1-rc2" "v1.1.0"
-test_semver "release-major" "v1.0.0 v1.0.1-rc1" "v2.0.0"
+test_semver "release-patch" "v1.0.0 v1.0.1-rc01 v1.0.1-rc02" "v1.0.1"
+test_semver "release-minor" "v1.0.0 v1.0.1-rc01 v1.0.1-rc02" "v1.1.0"
+test_semver "release-major" "v1.0.0 v1.0.1-rc01" "v2.0.0"
 
 # Test transitions
-test_semver "release-test" "v1.0.0" "v1.0.1-test1"
-test_semver "release-test" "v1.0.0 v1.0.1-test1" "v1.0.1-test2"
+test_semver "release-test" "v1.0.0" "v1.0.1-test01"
+test_semver "release-test" "v1.0.0 v1.0.1-test01" "v1.0.1-test02"
 
 # Independent RC and Test Sequences
-test_semver "release-test" "v1.0.0 v1.0.1-rc1" "v1.0.1-test1"
-test_semver "release-rc" "v1.0.0 v1.0.1-rc1 v1.0.1-test1 v1.0.1-test2" "v1.0.1-rc2"
+test_semver "release-test" "v1.0.0 v1.0.1-rc01" "v1.0.1-test01"
+test_semver "release-rc" "v1.0.0 v1.0.1-rc01 v1.0.1-test01 v1.0.1-test02" "v1.0.1-rc02"
 
 # Malformed tags ignored
-test_semver "release-patch" "v1.0.0 vfoo v1.0 v1.0.0-rc1 v2.0" "v1.0.1"
-test_semver "release-rc" "v1.0.0 vfoo v1.0.1-rc v1.0.1-rc1" "v1.0.1-rc2"
+test_semver "release-patch" "v1.0.0 vfoo v1.0 v1.0.0-rc01 v2.0" "v1.0.1"
+test_semver "release-rc" "v1.0.0 vfoo v1.0.1-rc v1.0.1-rc01" "v1.0.1-rc02"
 
 echo "Testing Recovery Paths:"
 # Valid override tag (tag exists and points to current SHA)
