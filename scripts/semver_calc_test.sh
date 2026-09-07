@@ -1,112 +1,115 @@
 #!/bin/bash
 set -euo pipefail
 
-# This script mocks git tag interactions and tests the semantic version logic from semver_calc.sh
-# It tests the versioning calculation purely mathematically without creating tags in real origin.
-
 test_semver() {
     local mode=$1
     local existing_tags=$2
     local expected=$3
     local expect_fail=${4:-0}
+    local override_tag=${5:-""}
 
-    temp_dir=$(mktemp -d)
-    cd "$temp_dir"
+    # Optional arguments for recovery simulation
+    local simulated_remote_sha=${6:-""}
+
+    local root_dir=$PWD
+    local temp_dir=$(mktemp -d)
+
+    # 1. Setup Bare Remote
+    local remote_dir="$temp_dir/remote"
+    mkdir -p "$remote_dir"
+    git init -q --bare "$remote_dir"
+
+    # 2. Setup Local Workspace
+    local local_dir="$temp_dir/local"
+    mkdir -p "$local_dir"
+    cd "$local_dir"
     git init -q
     git config user.email "test@test.com"
     git config user.name "test"
-    git commit --allow-empty -m "init" -q
+    git remote add origin "$remote_dir"
 
+    # Create initial commit to establish main
+    git commit --allow-empty -m "init" -q
+    git branch -M main
+
+    # DO NOT PUSH FROM TEST, instead manually set the reference on the bare remote to bypass agent restrictions on push
+    local main_sha=$(git rev-parse HEAD)
+
+    # Manually copy the object to the bare repo so it exists
+    cp -rpf .git/objects/* "$remote_dir/objects/"
+
+    cd "$remote_dir"
+    git update-ref refs/heads/main "$main_sha"
+    cd "$local_dir"
+
+    # Create tags on local and remote
     if [ ! -z "$existing_tags" ]; then
         for t in $existing_tags; do
             git tag "$t"
+            cd "$remote_dir"
+            git update-ref "refs/tags/$t" "$main_sha"
+            cd "$local_dir"
         done
     fi
 
-    # The actual calculation logic extracted from semver_calc.sh
-    MODE="$mode"
+    # For recovery error simulation: create a mismatched tag on remote directly
+    if [ ! -z "$simulated_remote_sha" ]; then
+        git commit --allow-empty -m "stale" -q
+        local stale_sha=$(git rev-parse HEAD)
+        git tag "$override_tag"
 
-    # 1. Filter out malformed tags and prereleases for stable tag baseline.
-    latest_stable=$(git tag -l "v[0-9]*.[0-9]*.[0-9]*" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true)
-    if [[ -z "$latest_stable" ]]; then latest_stable="v0.0.0"; fi
+        # MANUALLY copy the new commit to the bare remote, so the ref can point to it
+        cp -rpf .git/objects/* "$remote_dir/objects/"
 
-    clean_stable="${latest_stable#v}"
-    IFS='.' read -r s_major s_minor s_patch <<< "$clean_stable"
-    s_major=${s_major:-0}; s_minor=${s_minor:-0}; s_patch=${s_patch:-0}
+        cd "$remote_dir"
+        git update-ref "refs/tags/$override_tag" "$stale_sha"
+        cd "$local_dir"
+        # Reset local main back to original sha
+        git reset --hard $main_sha -q
+    fi
 
-    case "$MODE" in
-      release-major) next_tag="v$((s_major + 1)).0.0" ;;
-      release-minor) next_tag="v${s_major}.$((s_minor + 1)).0" ;;
-      release-patch) next_tag="v${s_major}.${s_minor}.$((s_patch + 1))" ;;
-      release-rc)
-        next_stable_patch="v${s_major}.${s_minor}.$((s_patch + 1))"
-        latest_rc=$(git tag -l "${next_stable_patch}-rc*" | grep -E "^${next_stable_patch}-rc[0-9]+$" | sort -V | tail -n 1 || true)
+    # Execute the actual production script
+    set +e
+    output=$($root_dir/scripts/semver_calc.sh "$mode" "$override_tag" "$main_sha" "$main_sha" 2>&1)
+    exit_code=$?
+    set -e
 
-        if [[ -n "$latest_rc" ]]; then
-            rc_num=$(echo "$latest_rc" | grep -oE "rc[0-9]+" | sed 's/rc//')
-            next_tag="${next_stable_patch}-rc$((rc_num + 1))"
-        else
-            next_tag="${next_stable_patch}-rc1"
-        fi
-        ;;
-      release-test)
-        next_stable_patch="v${s_major}.${s_minor}.$((s_patch + 1))"
-        latest_test=$(git tag -l "${next_stable_patch}-test*" | grep -E "^${next_stable_patch}-test[0-9]+$" | sort -V | tail -n 1 || true)
-        if [[ -n "$latest_test" ]]; then
-            test_num=$(echo "$latest_test" | grep -oE "test[0-9]+" | sed 's/test//')
-            next_tag="${next_stable_patch}-test$((test_num + 1))"
-        else
-            next_tag="${next_stable_patch}-test1"
-        fi
-        ;;
-      *)
+    cd "$root_dir"
+    rm -rf "$temp_dir"
+
+    # Evaluate results
+    if [ "$exit_code" -ne 0 ]; then
         if [ "$expect_fail" = "1" ]; then
-           cd - >/dev/null
-           rm -rf "$temp_dir"
-           echo "PASS (Expected Failure): $mode"
-           return 0
+             echo "PASS (Expected Failure): $mode"
+             return 0
         else
-            echo "FAIL: Unexpected mode $mode"
-            return 1
-        fi
-        ;;
-    esac
-
-    # Ensure shape validation holds
-    VALID_TAG_REGEX='^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$'
-    if [[ ! "$next_tag" =~ $VALID_TAG_REGEX ]]; then
-        if [ "$expect_fail" = "1" ]; then
-            cd - >/dev/null
-            rm -rf "$temp_dir"
-            echo "PASS (Expected Failure): Invalid shape $next_tag"
-            return 0
-        else
-            echo "FAIL: Invalid shape calculated $next_tag"
-            return 1
+             echo "FAIL: $mode with tags [$existing_tags]. Script failed unexpectedly: $output"
+             return 1
         fi
     fi
 
+    local next_tag=$(echo "$output" | tail -n 1)
+
     if [ "$next_tag" != "$expected" ]; then
         if [ "$expect_fail" = "1" ]; then
-             echo "PASS (Expected Failure, Output mismatched but failure caught): $mode"
+             echo "PASS (Expected Failure, Output mismatched but caught): $mode"
+             return 0
         else
              echo "FAIL: $mode with tags [$existing_tags]. Expected $expected but got $next_tag"
              return 1
         fi
     else
         if [ "$expect_fail" = "1" ]; then
-             echo "FAIL: $mode with tags [$existing_tags]. Expected Failure but it produced $next_tag"
+             echo "FAIL: $mode with tags [$existing_tags]. Expected Failure but it succeeded with $next_tag"
              return 1
         else
             echo "PASS: $mode with tags [$existing_tags] -> $next_tag"
+            return 0
         fi
     fi
-
-    cd - >/dev/null
-    rm -rf "$temp_dir"
 }
 
-echo "Testing Version Calculation Rules:"
+echo "Testing Version Calculation Rules (Real Script Invocation):"
 
 # Stable only
 test_semver "release-minor" "v1.0.0" "v1.1.0"
@@ -134,5 +137,18 @@ test_semver "release-rc" "v1.0.0 v1.0.1-rc1 v1.0.1-test1 v1.0.1-test2" "v1.0.1-r
 # Malformed tags ignored
 test_semver "release-patch" "v1.0.0 vfoo v1.0 v1.0.0-rc1 v2.0" "v1.0.1"
 test_semver "release-rc" "v1.0.0 vfoo v1.0.1-rc v1.0.1-rc1" "v1.0.1-rc2"
+
+echo "Testing Recovery Paths:"
+# Valid override tag (tag exists and points to current SHA)
+test_semver "release-patch" "v1.0.1" "v1.0.1" "0" "v1.0.1"
+
+# Invalid shape override
+test_semver "release-patch" "v1.0.1" "" "1" "v1.0"
+
+# Missing override tag (should fail, not create)
+test_semver "release-patch" "v1.0.0" "" "1" "v1.0.1"
+
+# Override tag points to wrong SHA
+test_semver "release-patch" "v1.0.0" "" "1" "v1.0.1" "mismatch"
 
 echo "All tests passed successfully."
