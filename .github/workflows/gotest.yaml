@@ -17,3 +17,5 @@ jobs:
         run: go version
       - name: Run tests
         run: go test -v ./...
+      - name: Run Semantic Versioning Logic Tests
+        run: bash scripts/semver_calc_test.sh
