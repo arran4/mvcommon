@@ -32,10 +32,19 @@ jobs:
     name: Prepare release tag
     if: github.event_name == 'workflow_dispatch' && inputs.mode != 'publish-tag'
     runs-on: ubuntu-latest
+    concurrency:
+      group: manual-release-${{ github.ref }}
+      cancel-in-progress: false
     permissions:
       contents: write
       actions: write
     steps:
+      - name: Enforce Main Branch
+        run: |
+          if [[ "${{ github.ref }}" != "refs/heads/main" ]]; then
+            echo "Error: manual release must run from main branch" >&2
+            exit 1
+          fi
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -62,101 +71,102 @@ jobs:
 
           git fetch --tags --force
 
+          # Ensure we are operating on the actual origin/main commit
+          ORIGIN_MAIN_SHA=$(git ls-remote origin refs/heads/main | awk '{print $1}')
+          if [[ "${GITHUB_SHA}" != "${ORIGIN_MAIN_SHA}" ]]; then
+            echo "Error: Validation failed. ${GITHUB_SHA} is not the current origin/main (${ORIGIN_MAIN_SHA})" >&2
+            exit 1
+          fi
+
           if [[ -n "$OVERRIDE" ]]; then
             OVERRIDE="${OVERRIDE#v}"
             next_tag="v$OVERRIDE"
-          else
-            latest_tag=$(git tag -l "v*" | sort -V | tail -n 1)
-            if [[ -z "$latest_tag" ]]; then
-              latest_tag="v0.0.0"
+
+            # Verify the override tag already exists and points to GITHUB_SHA
+            if git rev-parse "$next_tag" >/dev/null 2>&1; then
+              # Dereference the tag just in case it's an annotated tag
+              REMOTE_TAG_SHA=$(git ls-remote --tags origin "refs/tags/$next_tag^{}" | awk '{print $1}')
+              if [[ -z "$REMOTE_TAG_SHA" ]]; then
+                  # If no ^{} exists, it's a lightweight tag
+                  REMOTE_TAG_SHA=$(git ls-remote --tags origin "refs/tags/$next_tag" | awk '{print $1}')
+              fi
+
+              if [[ "$REMOTE_TAG_SHA" == "${GITHUB_SHA}" ]]; then
+                echo "Recovery Tag $next_tag exists and points to GITHUB_SHA. Safe to retry."
+              else
+                echo "Recovery Tag already exists and points to $REMOTE_TAG_SHA (expected ${GITHUB_SHA}): $next_tag" >&2
+                exit 1
+              fi
+            else
+              echo "Error: Recovery tag $next_tag does not exist. The override is for recovery only." >&2
+              exit 1
             fi
 
-            # Remove 'v' prefix and prerelease tags for calculation
-            clean_tag="${latest_tag#v}"
-            clean_tag="${clean_tag%%-*}"
-            IFS='.' read -r major minor patch <<< "$clean_tag"
+          else
+            latest_stable=$(git tag -l "v*" | grep -v "-" | sort -V | tail -n 1 || true)
+            if [[ -z "$latest_stable" ]]; then latest_stable="v0.0.0"; fi
 
-            # Default missing components to 0
-            major=${major:-0}
-            minor=${minor:-0}
-            patch=${patch:-0}
+            latest_any=$(git tag -l "v*" | sort -V | tail -n 1 || true)
+            if [[ -z "$latest_any" ]]; then latest_any="v0.0.0"; fi
+
+            clean_stable="${latest_stable#v}"
+            IFS='.' read -r s_major s_minor s_patch <<< "$clean_stable"
+            s_major=${s_major:-0}; s_minor=${s_minor:-0}; s_patch=${s_patch:-0}
 
             case "$MODE" in
-              release-major)
-                major=$((major + 1))
-                minor=0
-                patch=0
-                suffix=""
-                ;;
-              release-minor)
-                minor=$((minor + 1))
-                patch=0
-                suffix=""
-                ;;
-              release-patch)
-                patch=$((patch + 1))
-                suffix=""
-                ;;
+              release-major) next_tag="v$((s_major + 1)).0.0" ;;
+              release-minor) next_tag="v${s_major}.$((s_minor + 1)).0" ;;
+              release-patch) next_tag="v${s_major}.${s_minor}.$((s_patch + 1))" ;;
               release-rc)
-                patch=$((patch + 1))
-                suffix="-rc1"
+                next_stable_patch="v${s_major}.${s_minor}.$((s_patch + 1))"
+                if [[ "$latest_any" == "${next_stable_patch}-rc"* ]]; then
+                    rc_num=$(echo "$latest_any" | grep -oE "rc[0-9]+" | sed 's/rc//')
+                    next_tag="${next_stable_patch}-rc$((rc_num + 1))"
+                else
+                    next_tag="${next_stable_patch}-rc1"
+                fi
                 ;;
               release-test)
-                patch=$((patch + 1))
-                suffix="-test1"
+                next_stable_patch="v${s_major}.${s_minor}.$((s_patch + 1))"
+                if [[ "$latest_any" == "${next_stable_patch}-test"* ]]; then
+                    test_num=$(echo "$latest_any" | grep -oE "test[0-9]+" | sed 's/test//')
+                    next_tag="${next_stable_patch}-test$((test_num + 1))"
+                else
+                    next_tag="${next_stable_patch}-test1"
+                fi
                 ;;
               *) echo "Unsupported release mode: $MODE" >&2; exit 1 ;;
             esac
 
-            # Basic incrementing logic for rc/test tags. If the latest tag is already a prerelease, we increment the suffix number.
-            if [[ "$MODE" == "release-rc" || "$MODE" == "release-test" ]]; then
-                if [[ "$latest_tag" == *"rc"* ]] && [[ "$MODE" == "release-rc" ]]; then
-                    # Extract rc number, increment it
-                    rc_num=$(echo "$latest_tag" | awk -F'-rc' '{print $2}')
-                    rc_num=$((rc_num + 1))
-                    suffix="-rc$rc_num"
-                    # Reset patch logic since we are incrementing the existing rc
-                    IFS='.' read -r major minor patch <<< "${latest_tag#v}"
-                    patch="${patch%%-*}"
-                elif [[ "$latest_tag" == *"test"* ]] && [[ "$MODE" == "release-test" ]]; then
-                    # Extract test number, increment it
-                    test_num=$(echo "$latest_tag" | awk -F'-test' '{print $2}')
-                    test_num=$((test_num + 1))
-                    suffix="-test$test_num"
-                     # Reset patch logic since we are incrementing the existing test
-                    IFS='.' read -r major minor patch <<< "${latest_tag#v}"
-                    patch="${patch%%-*}"
-                fi
-            fi
-
-            next_tag="v${major}.${minor}.${patch}${suffix}"
-          fi
-
-          [[ "$next_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$ ]] || {
-            echo "Invalid tag: $next_tag" >&2
-            exit 1
-          }
-
-          if git rev-parse "$next_tag" >/dev/null 2>&1; then
-            REMOTE_TAG_SHA=$(git ls-remote --tags origin "refs/tags/$next_tag" | awk '{print $1}')
-            if [[ "$REMOTE_TAG_SHA" == "${GITHUB_SHA}" ]]; then
-              echo "Tag $next_tag exists and points to GITHUB_SHA. Safe to retry."
-            else
-              echo "Tag already exists and points to $REMOTE_TAG_SHA (expected ${GITHUB_SHA}): $next_tag" >&2
-              echo "To retry a failed publication for this exact version, ensure release_version_override is used and GITHUB_SHA matches." >&2
+            [[ "$next_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$ ]] || {
+              echo "Invalid tag calculated: $next_tag" >&2
               exit 1
-            fi
-          else
-            git tag "$next_tag" "${GITHUB_SHA}"
-            git push origin "$next_tag" || (
-              VERIFY_SHA=$(git ls-remote --tags origin "refs/tags/$next_tag" | awk '{print $1}')
-              if [[ "$VERIFY_SHA" == "${GITHUB_SHA}" ]]; then
-                echo "Tag successfully verified on remote after push error."
+            }
+
+            if git rev-parse "$next_tag" >/dev/null 2>&1; then
+              REMOTE_TAG_SHA=$(git ls-remote --tags origin "refs/tags/$next_tag^{}" | awk '{print $1}')
+              if [[ -z "$REMOTE_TAG_SHA" ]]; then
+                  REMOTE_TAG_SHA=$(git ls-remote --tags origin "refs/tags/$next_tag" | awk '{print $1}')
+              fi
+              if [[ "$REMOTE_TAG_SHA" == "${GITHUB_SHA}" ]]; then
+                echo "Tag $next_tag exists and points to GITHUB_SHA. Safe to retry."
               else
-                echo "Tag push failed and remote verification failed." >&2
+                echo "Tag already exists and points to $REMOTE_TAG_SHA (expected ${GITHUB_SHA}): $next_tag" >&2
+                echo "To retry a failed publication for this exact version, ensure release_version_override is used and GITHUB_SHA matches." >&2
                 exit 1
               fi
-            )
+            else
+              git tag "$next_tag" "${GITHUB_SHA}"
+              git push origin "$next_tag" || (
+                VERIFY_SHA=$(git ls-remote --tags origin "refs/tags/$next_tag" | awk '{print $1}')
+                if [[ "$VERIFY_SHA" == "${GITHUB_SHA}" ]]; then
+                  echo "Tag successfully verified on remote after push error."
+                else
+                  echo "Tag push failed and remote verification failed." >&2
+                  exit 1
+                fi
+              )
+            fi
           fi
 
           gh workflow run go_releaser.yaml --ref "$next_tag" -f mode="publish-tag"
