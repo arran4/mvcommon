@@ -151,4 +151,7 @@ test_semver "release-patch" "v1.0.0" "" "1" "v1.0.1"
 # Override tag points to wrong SHA
 test_semver "release-patch" "v1.0.0" "" "1" "v1.0.1" "mismatch"
 
+# Override tag containing shell metacharacters
+test_semver "release-patch" "v1.0.1" "" "1" 'v1.0.1; echo "hacked"' ""
+
 echo "All tests passed successfully."

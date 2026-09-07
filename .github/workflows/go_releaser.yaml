@@ -63,6 +63,8 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_MODE: ${{ inputs.mode }}
+          RELEASE_VERSION_OVERRIDE: ${{ inputs.release_version_override }}
         run: |
           set -euo pipefail
 
@@ -70,7 +72,7 @@ jobs:
 
           ORIGIN_MAIN_SHA=$(git ls-remote origin refs/heads/main | awk '{print $1}')
 
-          next_tag=$(./scripts/semver_calc.sh "${{ inputs.mode }}" "${{ inputs.release_version_override }}" "${GITHUB_SHA}" "${ORIGIN_MAIN_SHA}")
+          next_tag=$(./scripts/semver_calc.sh "$RELEASE_MODE" "$RELEASE_VERSION_OVERRIDE" "${GITHUB_SHA}" "${ORIGIN_MAIN_SHA}")
 
           gh workflow run go_releaser.yaml --ref "$next_tag" -f mode="publish-tag"
 
